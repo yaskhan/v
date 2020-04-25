@@ -3184,8 +3184,9 @@ fn (v &Gen) interface_table() string {
 		if t.kind != .interface_ {
 			continue
 		}
-		continue
 		info := t.info as table.Interface
+		println('FOO=$info.foo')
+		println(info.gen_types)
 		// interface_name is for example Speaker
 		interface_name := t.name
 		mut methods := ''

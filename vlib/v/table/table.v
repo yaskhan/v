@@ -193,7 +193,7 @@ pub fn (t &Table) find_type(name string) ?TypeSymbol {
 
 [inline]
 pub fn (t &Table) get_type_symbol(typ Type) &TypeSymbol {
-	println('get_type_symbol $typ')
+	// println('get_type_symbol $typ')
 	idx := type_idx(typ)
 	if idx > 0 {
 		return &t.types[idx]
