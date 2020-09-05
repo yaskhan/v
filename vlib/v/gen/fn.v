@@ -503,7 +503,9 @@ fn (mut g Gen) fn_call(node ast.CallExpr) {
 			// Skip the first argument in json.decode which is a type
 			// its name was already used to generate the function call
 			// g.call_args(node.args[1..], node.expected_arg_types) // , [])
-			g.call_args(node) // QTODO
+			g.is_js_call = true
+			g.call_args(node)
+			g.is_js_call = false
 			g.writeln(');')
 			tmp2 = g.new_tmp_var()
 			g.writeln('Option_$typ $tmp2 = $fn_name ($json_obj);')
@@ -645,7 +647,7 @@ fn (mut g Gen) fn_call(node ast.CallExpr) {
 // fn (mut g Gen) call_args(args []ast.CallArg, expected_types []table.Type, tmp_arg_vars_to_free []string) {
 // fn (mut g Gen) call_args(args []ast.CallArg, expected_types []table.Type) {
 fn (mut g Gen) call_args(node ast.CallExpr) {
-	args := node.args
+	args := if g.is_js_call { node.args[1..] } else { node.args }
 	expected_types := node.expected_arg_types
 	is_variadic := expected_types.len > 0 && expected_types[expected_types.len - 1].has_flag(.variadic)
 	is_forwarding_varg := args.len > 0 && args[args.len - 1].typ.has_flag(.variadic)

@@ -110,6 +110,7 @@ mut:
 	// tmp_arg_vars_to_free  []string
 	called_fn_name        string
 	cur_mod               string
+	is_js_call            bool // for handling a special type arg #1 `json.decode(User, ...)`
 }
 
 const (
