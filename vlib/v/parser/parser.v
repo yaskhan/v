@@ -645,7 +645,7 @@ pub fn (mut p Parser) stmt(is_top_level bool) ast.Stmt {
 				} else if p.peek_tok.kind == .name {
 					p.error_with_pos('unexpected name `$p.peek_tok.lit`', p.peek_tok.position())
 				} else if !p.inside_if_expr && !p.inside_match_body && !p.inside_or_expr &&
-					p.peek_tok.kind in [.rcbr, .eof] {
+					p.peek_tok.kind in [.rcbr, .eof] && !p.mark_var_as_used(p.tok.lit) {
 					p.error_with_pos('`$p.tok.lit` evaluated but not used', p.tok.position())
 				}
 			}
@@ -1351,12 +1351,8 @@ fn (mut p Parser) dot_expr(left ast.Expr) ast.Expr {
 			or_kind = .propagate
 		}
 		//
-		end_pos := p.tok.position()
-		pos := token.Position{
-			line_nr: name_pos.line_nr
-			pos: name_pos.pos
-			len: end_pos.pos - name_pos.pos
-		}
+		end_pos := p.prev_tok.position()
+		pos := name_pos.extend(end_pos)
 		mcall_expr := ast.CallExpr{
 			left: left
 			name: field_name
@@ -1620,7 +1616,7 @@ fn (mut p Parser) import_stmt() ast.Import {
 	}
 	if p.tok.kind == .lcbr { // import module { fn1, Type2 } syntax
 		p.import_syms(mut node)
-		p.register_used_import(mod_name) // no `unused import` msg for parent
+		p.register_used_import(mod_alias) // no `unused import` msg for parent
 	}
 	pos_t := p.tok.position()
 	if import_pos.line_nr == pos_t.line_nr {
