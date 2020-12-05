@@ -372,6 +372,7 @@ pub mut:
 	is_or           bool // `x := foo() or { ... }`
 	// (for setting the position after the or block for autofree)
 	is_tmp          bool // for tmp for loop vars, so that autofree can skip them
+	test            int
 }
 
 // used for smartcasting only
