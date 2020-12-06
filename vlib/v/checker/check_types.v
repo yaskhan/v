@@ -85,14 +85,27 @@ pub fn (mut c Checker) check_basic(got table.Type, expected table.Type) bool {
 		}
 	}
 	// TODO
-	if exp_type_sym.name == 'array' || got_type_sym.name == 'array' {
+	// if exp_type_sym.name == 'array' || got_type_sym.name == 'array' {
+	if got_idx == table.array_type_idx || exp_idx == table.array_type_idx {
 		return true
 	}
-	// TODO
-	// accept [] when an expected type is an array
-	if got_type_sym.kind == .array &&
-		got_type_sym.name == 'array_void' && exp_type_sym.kind == .array {
-		return true
+	if got_type_sym.kind == .array && exp_type_sym.kind == .array {
+		// TODO
+		// accept [] when an expected type is an array
+		if got_type_sym.name == 'array_void' {
+			return true
+		}
+		// if elem_type is an alias, check it
+		// TODO: think about recursion, how many levels of alias can there be?
+		got_info := got_type_sym.info as table.Array
+		exp_info := exp_type_sym.info as table.Array
+		got_elem_sym := c.table.get_type_symbol(got_info.elem_type)
+		exp_elem_sym := c.table.get_type_symbol(exp_info.elem_type)
+		if (got_elem_sym.kind == .alias ||
+			exp_elem_sym.kind == .alias) &&
+			c.check_basic(got_info.elem_type, exp_info.elem_type) {
+			return true
+		}
 	}
 	// type alias
 	if (got_type_sym.kind == .alias &&
@@ -377,6 +390,10 @@ pub fn (mut c Checker) string_inter_lit(mut node ast.StringInterLiteral) table.T
 			}
 			node.need_fmts[i] = fmt != c.get_default_fmt(ftyp, typ)
 		}
+		// check recursive str
+		if c.cur_fn.is_method && c.cur_fn.name == 'str' && c.cur_fn.receiver.name == expr.str() {
+			c.error('cannot call `str()` method recursively', expr.position())
+		}
 	}
 	return table.string_type
 }
@@ -390,15 +407,19 @@ pub fn (mut c Checker) infer_fn_types(f table.Fn, mut call_expr ast.CallExpr) {
 	mut typ := table.void_type
 	for i, param in f.params {
 		arg := call_expr.args[i]
-		if param.type_source_name == gt_name {
+		if param.typ.has_flag(.generic) {
 			typ = arg.typ
 			break
 		}
 		arg_sym := c.table.get_type_symbol(arg.typ)
-		if arg_sym.kind == .array && param.type_source_name == '[]$gt_name' {
-			info := arg_sym.info as table.Array
-			typ = info.elem_type
-			break
+		param_type_sym := c.table.get_type_symbol(param.typ)
+		if arg_sym.kind == .array && param_type_sym.kind == .array {
+			param_info := param_type_sym.info as table.Array
+			if param_info.elem_type.has_flag(.generic) {
+				arg_info := arg_sym.info as table.Array
+				typ = arg_info.elem_type
+				break
+			}
 		}
 	}
 	if typ == table.void_type {

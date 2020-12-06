@@ -81,8 +81,7 @@ fn (mut g Gen) gen_str_for_option(typ table.Type, styp string, str_fn_name strin
 	parent_type := typ.clear_flag(.optional)
 	sym := g.table.get_type_symbol(parent_type)
 	sym_has_str_method, _, _ := sym.str_method_info()
-	sym_name := sym.name.replace('.', '__')
-	mut parent_str_fn_name := styp_to_str_fn_name(sym_name)
+	mut parent_str_fn_name := styp_to_str_fn_name(sym.cname)
 	if !sym_has_str_method {
 		parent_str_fn_name = g.gen_str_for_type(parent_type)
 	}
@@ -95,11 +94,11 @@ fn (mut g Gen) gen_str_for_option(typ table.Type, styp string, str_fn_name strin
 	g.auto_str_funcs.writeln('\t\tres = _SLIT("none");')
 	g.auto_str_funcs.writeln('\t} else if (it.ok) {')
 	if typ.is_string() {
-		g.auto_str_funcs.writeln('\t\tres = _STR("\'%.*s\\000\'", 2, ${parent_str_fn_name}(*($sym_name*)it.data));')
+		g.auto_str_funcs.writeln('\t\tres = _STR("\'%.*s\\000\'", 2, ${parent_str_fn_name}(*($sym.cname*)it.data));')
 	} else if sym.kind == .struct_ && !sym_has_str_method {
-		g.auto_str_funcs.writeln('\t\tres = indent_${parent_str_fn_name}(*($sym_name*)it.data, indent_count);')
+		g.auto_str_funcs.writeln('\t\tres = indent_${parent_str_fn_name}(*($sym.cname*)it.data, indent_count);')
 	} else {
-		g.auto_str_funcs.writeln('\t\tres = ${parent_str_fn_name}(*($sym_name*)it.data);')
+		g.auto_str_funcs.writeln('\t\tres = ${parent_str_fn_name}(*($sym.cname*)it.data);')
 	}
 	g.auto_str_funcs.writeln('\t} else {')
 	g.auto_str_funcs.writeln('\t\tres = _STR("error: \'%.*s\\000\'", 2, it.v_error);')
@@ -258,22 +257,18 @@ fn (mut g Gen) gen_str_for_map(info table.Map, styp string, str_fn_name string) 
 	if !val_sym.has_method('str') {
 		g.gen_str_for_type(info.value_type)
 	}
-	zero := g.type_default(info.value_type)
 	g.type_definitions.writeln('static string ${str_fn_name}($styp m); // auto')
 	g.auto_str_funcs.writeln('static string ${str_fn_name}($styp m) { return indent_${str_fn_name}(m, 0);}')
 	g.type_definitions.writeln('static string indent_${str_fn_name}($styp m, int indent_count); // auto')
 	g.auto_str_funcs.writeln('static string indent_${str_fn_name}($styp m, int indent_count) { /* gen_str_for_map */')
 	g.auto_str_funcs.writeln('\tstrings__Builder sb = strings__new_builder(m.key_values.len*10);')
 	g.auto_str_funcs.writeln('\tstrings__Builder_write(&sb, _SLIT("{"));')
-	g.auto_str_funcs.writeln('\tfor (unsigned int i = 0; i < m.key_values.len; ++i) {')
-	g.auto_str_funcs.writeln('\t\tif (m.key_values.keys[i].str == 0) { continue; }')
-	g.auto_str_funcs.writeln('\t\tstring key = (*(string*)DenseArray_get(m.key_values, i));')
+	g.auto_str_funcs.writeln('\tfor (int i = 0; i < m.key_values.len; ++i) {')
+	g.auto_str_funcs.writeln('\t\tif (!DenseArray_has_index(&m.key_values, i)) { continue; }')
+	g.auto_str_funcs.writeln('\t\tstring key = *(string*)DenseArray_key(&m.key_values, i);')
 	g.auto_str_funcs.writeln('\t\tstrings__Builder_write(&sb, _STR("\'%.*s\\000\'", 2, key));')
 	g.auto_str_funcs.writeln('\t\tstrings__Builder_write(&sb, _SLIT(": "));')
-	g.auto_str_funcs.write('\t$val_styp it = (*($val_styp*)map_get(')
-	g.auto_str_funcs.write('m, (*(string*)DenseArray_get(m.key_values, i))')
-	g.auto_str_funcs.write(', ')
-	g.auto_str_funcs.writeln(' &($val_styp[]) { $zero }));')
+	g.auto_str_funcs.writeln('\t\t$val_styp it = *($val_styp*)DenseArray_value(&m.key_values, i);')
 	if val_sym.kind == .string {
 		g.auto_str_funcs.writeln('\t\tstrings__Builder_write(&sb, _STR("\'%.*s\\000\'", 2, it));')
 	} else if val_sym.kind == .struct_ && !val_sym.has_method('str') {
