@@ -114,7 +114,7 @@ pub fn file_size(path string) int {
 }
 
 // mv moves files or folders from `src` to `dst`.
-pub fn mv(src string, dst string) {
+pub fn mv(src string, dst string) ? {
 	mut rdst := dst
 	if is_dir(rdst) {
 		rdst = join_path(rdst.trim_right(path_separator), file_name(src.trim_right(path_separator)))
@@ -122,9 +122,15 @@ pub fn mv(src string, dst string) {
 	$if windows {
 		w_src := src.replace('/', '\\')
 		w_dst := rdst.replace('/', '\\')
-		C._wrename(w_src.to_wide(), w_dst.to_wide())
+		ret := C._wrename(w_src.to_wide(), w_dst.to_wide())
+		if ret != 0 {
+			return error_with_code('failed to rename $src to $dst', int(ret))
+		}
 	} $else {
-		C.rename(charptr(src.str), charptr(rdst.str))
+		ret := C.rename(charptr(src.str), charptr(rdst.str))
+		if ret != 0 {
+			return error_with_code('failed to rename $src to $dst', int(ret))
+		}
 	}
 }
 
@@ -869,7 +875,7 @@ pub fn create(path string) ?File {
 	}
 }
 
-// execvp - loads and executes a new child process, in place of the current process.
+// execvp - loads and executes a new child process, *in place* of the current process.
 // The child process executable is located in `cmdpath`.
 // The arguments, that will be passed to it are in `args`.
 // NB: this function will NOT return when successfull, since
@@ -883,6 +889,32 @@ pub fn execvp(cmdpath string, args []string) ? {
 	cargs << charptr(0)
 	res := C.execvp(charptr(cmdpath.str), cargs.data)
 	if res == -1 {
-		return error(posix_get_error_msg(C.errno))
+		return error_with_code(posix_get_error_msg(C.errno), C.errno)
+	}
+}
+
+// execve - loads and executes a new child process, *in place* of the current process.
+// The child process executable is located in `cmdpath`.
+// The arguments, that will be passed to it are in `args`.
+// You can pass environment variables to through `envs`.
+// NB: this function will NOT return when successfull, since
+// the child process will take control over execution.
+pub fn execve(cmdpath string, args []string, envs []string) ? {
+	mut cargv := []charptr{}
+	mut cenvs := []charptr{}
+	cargv << charptr(cmdpath.str)
+	for i in 0 .. args.len {
+		cargv << charptr(args[i].str)
+	}
+	for i in 0 .. envs.len {
+		cenvs << charptr(envs[i].str)
+	}
+	cargv << charptr(0)
+	cenvs << charptr(0)
+	res := C.execve(charptr(cmdpath.str), cargv.data, cenvs.data)
+	// NB: normally execve does not return at all.
+	// If it returns, then something went wrong...
+	if res == -1 {
+		return error_with_code(posix_get_error_msg(C.errno), C.errno)
 	}
 }
